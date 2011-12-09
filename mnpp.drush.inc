@@ -10,6 +10,7 @@ function mnpp_drush_init(){
 	if (file_exists($MNPP_PATH) && is_dir($MNPP_PATH)){
 		define('MNPP_PATH', $MNPP_PATH);
 		define('MNPP_INIT_SCRIPTS', MNPP_PATH . 'init/');
+		define('MNPP_BIN', MNPP_PATH . 'init/mnpp');
 	}
 }
 
@@ -37,6 +38,7 @@ function mnpp_drush_command(){
 		'examples' => array(
 			'drush mnpp start' => 'Start all services',
 			'drush mnpp stop' => 'Stop all services',
+			'drush mnpp restart' => 'Restart all services',
 			'drush mnpp --nginx=start|stop' => 'Start or Stop nginx',
 			'drush mnpp --percona=start|stop' => 'Start or Stop percona',
 			'drush mnpp --php-fpm=start|stop' => 'Start or Stop php-fpm',
@@ -53,7 +55,7 @@ function mnpp_drush_command(){
  */
 function drush_mnpp(){
 	$args = drush_get_arguments();
-	
+
 	if(in_array($args[1], array('restart', 'start', 'stop'))){
 		mnpp_service_manage('', $args[1]);
 		return;
@@ -118,12 +120,8 @@ function mnpp_service_init_script($service, $command){
 		$script = 'mnpp --php53  --' . $command;
 	}
 	else{
-		$version = '';
-		if ($service == 'php-fpm'){
-			$service = 'php';
-			$version = '53';
-		}
-		
+		$service = mnpp_php_version($service);
+		($service == 'php') ? $version = '53': $version = '';
 		$script = 'mnpp --' . $command  . ' ' . $service . $version;
 	}
 
@@ -132,12 +130,16 @@ function mnpp_service_init_script($service, $command){
 
 /**
  * Run command of script service
- *
+ * @param String $service
+ * @param String $command
+ * @param String $script
  */
 function mnpp_service_init_script_rc($service, $command, $script){
 	$script = "sudo " . $script;
+	$filename = mnpp_php_version($service, $command);	
+	$rc = MNPP_INIT_SCRIPTS . $filename . ".sh";
 
-	//if(file_exists($script)){
+	if(file_exists(MNPP_BIN) && file_exists($rc)){
 		if(drush_shell_exec($script)){
 			drush_log(dt('MNPP !service !command', array(
 				'!service' => $service,
@@ -152,5 +154,16 @@ function mnpp_service_init_script_rc($service, $command, $script){
 				'!service' => $service
 			)));
 		}
-	//}
+	}
+}
+
+function mnpp_php_version($service, $command = ''){
+	
+	if ($service == 'php-fpm'){
+		$service = 'php';
+	}else if(empty($service)){
+		$service = $command;
+	}
+	
+	return $service;
 }
